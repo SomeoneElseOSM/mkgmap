@@ -1,0 +1,61 @@
+
+This is a test file.
+
+= Section 1
+This is a section to introduce the options that
+follow.
+
+--version 
+    Print the version number of mkgmap.
+
+Text between options.
+Next options have arguments
+
+--input-file=filename
+    Read input data from the give file.  This option (or just a
+    filename) may be given more than once.
+
+-h filename
+--has-short-form=filename
+	The given file is opened and each line is an option setting of
+	the form option=value, any option that could be used on the command
+	line can be used, however you omit the leading '--'.  The short
+	option names with a single '-' cannot be used, simply use the
+	long name instead.
+
+Options with defaults follow.
+
+--bin-def-on
+    A binary option that defaults to being on.
+    # default: on
+
+--bin-def-off
+    A binary options that default to being off. This is the same as not having a
+    default state.
+    # default: off
+
+--string-with-def
+    A string value with a default
+    # default: "has a value"
+
+Options with deprecated and removed varients.
+
+--old-option # old
+--new-name
+    The old-option will not be shown in listings, but can be used. When used it gives a warning that it
+    will be removed in the future.
+
+--old-option2 # old: message to be printed
+    The old-option2 will not be listed in help, but can be used. When used it prints the given message
+    as a warning.
+
+--old-without-replacement # removed
+    This is an option that has been removed, if used it is an error and this description
+    message will be printed
+
+Removed options without help description - as might be normal.
+
+--removed1 # removed
+--removed2 # removed
+--removed3 # removed
+

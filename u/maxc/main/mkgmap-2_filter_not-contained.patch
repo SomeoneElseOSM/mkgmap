@@ -1,0 +1,217 @@
+Index: doc/styles/rules-filters.txt
+===================================================================
+--- doc/styles/rules-filters.txt	(revision 3424)
++++ doc/styles/rules-filters.txt	(working copy)
+@@ -129,6 +129,28 @@
+ `${name\|substring:2:5}`
+ If the "name" was "Dorset Lane", then the result is "rse".  If there is just the one number,
+ then the substring starts from that character until the end of the string.
++
++| not-contained | `separator tag` |
++Used to check for duplicate values. If the value of this tag is contained in the list being
++the value of the tag named as the argument to +not-contained+, then value
++of this tag is set to undefined.
++
++....
++type=route & route=bus & ref=* {
++   apply {
++      set route_ref='$(route_ref),${ref|not-contained:,:route_ref}' | '$(route_ref)' | '${ref}';
++   }
++}
++....
++
++Here, +ref+ value is only added to +route_ref+ when it is not already contained in that list
++(with separator ','). Otherwise the value is unchanged.
++This helps to get correct labeling (no duplicates) for public transport lines where there can be multiple relations
++with the same +ref+ attribute (e.g. one for the forward and one for the backward direction).
++
++For example, if +route_ref+ was already "1,2,150" and +ref+ would again be "150",
++this value would not be added to the list as it is already there.
++In contrast, +ref+ equal to "229" would be added, so after that +route_ref+ would have the value "1,2,150,229"
+ |=====
+ 
+ === Symbol codes
+Index: src/uk/me/parabola/mkgmap/osmstyle/actions/NotContainedFilter.java
+===================================================================
+--- src/uk/me/parabola/mkgmap/osmstyle/actions/NotContainedFilter.java	(revision 0)
++++ src/uk/me/parabola/mkgmap/osmstyle/actions/NotContainedFilter.java	(revision 0)
+@@ -0,0 +1,76 @@
++/*
++ * Copyright (c) 2015.
++ * 
++ * This program is free software; you can redistribute it and/or modify it under the terms
++ * of the GNU General Public License version 3 or version 2 as published by the Free
++ * Software Foundation.
++ * 
++ * This program is distributed in the hope that it will be useful, but WITHOUT ANY
++ * WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A
++ * PARTICULAR PURPOSE. See the GNU General Public License for more details.
++ */
++package uk.me.parabola.mkgmap.osmstyle.actions;
++
++import java.util.regex.Pattern;
++
++import uk.me.parabola.mkgmap.reader.osm.Element;
++import uk.me.parabola.mkgmap.reader.osm.TagDict;
++import uk.me.parabola.mkgmap.scan.SyntaxException;
++
++/**
++ * This can be used to filter out redundant values.<br>
++ * <br>
++ * The filter checks whether the value is contained within another tag's value. If so, a
++ * null string is returned.<br>
++ * <br>
++ * Another tag should consist of values separated by a delimiter (semicolon ';' by
++ * default).<br>
++ * <br>
++ * Example: after<br>
++ * <code>set tag='Aa#Bb#Cc';</code><br>
++ * <code>set tag2='Ax|not-contained:#:tag';</code> would set the tag 'tag2' to the value
++ * 'Ax', whereas<br>
++ * <code>set tag3='Aa|not-contained:#:tag';</code> would set leave the tag 'tag3'
++ * undefined.
++ *
++ * @author Maxim Duester
++ */
++public class NotContainedFilter extends ValueFilter {
++	private String separator;
++	private short tagKey;
++
++	public NotContainedFilter(String arg) {
++		String[] temp = arg.split(":");
++
++		if (temp.length < 2 || temp[1].isEmpty())
++			throw new SyntaxException(
++					"Missing tag to compare in style not-contained command: " + arg);
++
++		// set the separator (default to ;)
++		if (temp[0].length() > 0)
++			separator = temp[0];
++		else
++			separator = ";";
++		// set the tag short value
++		tagKey = TagDict.getInstance().xlate(temp[1]);
++	}
++
++	public String doFilter(String value, Element el) {
++		if (value == null)
++			return null;
++
++		String tagValue = el.getTag(tagKey);
++		if (tagValue == null)
++			return value;
++
++		// split uses a regex we need to replace special characters
++		String[] temp = tagValue.split(Pattern.quote(separator));
++
++		for (String s : temp)
++			if (s.equals(value))
++				return null;
++
++		// nothing found => value not in tag's value
++		return value;
++	}
++}
+Index: src/uk/me/parabola/mkgmap/osmstyle/actions/ValueBuilder.java
+===================================================================
+--- src/uk/me/parabola/mkgmap/osmstyle/actions/ValueBuilder.java	(revision 3424)
++++ src/uk/me/parabola/mkgmap/osmstyle/actions/ValueBuilder.java	(working copy)
+@@ -236,6 +236,9 @@
+ 		case "country-ISO":
+ 			item.addFilter(new CountryISOFilter());
+ 			break;
++		case "not-contained":
++			item.addFilter(new NotContainedFilter(arg));
++			break;
+ 		default:
+ 			throw new SyntaxException(String.format("Unknown filter '%s'", cmd));
+ 		}
+Index: test/uk/me/parabola/mkgmap/osmstyle/actions/NotContainedFilterTest.java
+===================================================================
+--- test/uk/me/parabola/mkgmap/osmstyle/actions/NotContainedFilterTest.java	(revision 0)
++++ test/uk/me/parabola/mkgmap/osmstyle/actions/NotContainedFilterTest.java	(revision 0)
+@@ -0,0 +1,83 @@
++package uk.me.parabola.mkgmap.osmstyle.actions;
++
++import static org.junit.Assert.assertEquals;
++import static org.junit.Assert.assertNull;
++
++import org.junit.Test;
++
++import uk.me.parabola.mkgmap.reader.osm.Element;
++import uk.me.parabola.mkgmap.reader.osm.Way;
++import uk.me.parabola.mkgmap.scan.SyntaxException;
++
++/**
++ * @author Maxim Duester
++ *
++ */
++public class NotContainedFilterTest {
++
++	@Test(expected = SyntaxException.class)
++	public void testNoArg() {
++		NotContainedFilter filter = new NotContainedFilter("");
++		filter.doFilter("x", null);
++	}
++
++	@Test(expected = SyntaxException.class)
++	public void testOneArg() {
++		NotContainedFilter filter = new NotContainedFilter(";");
++		filter.doFilter("x", null);
++	}
++
++	@Test(expected = SyntaxException.class)
++	public void test2ndArgMissing() {
++		NotContainedFilter filter = new NotContainedFilter(":");
++		filter.doFilter("x", null);
++	}
++
++	@Test
++	public void test2ndArgNotContained() {
++		NotContainedFilter filter = new NotContainedFilter(";:ref");
++		Element el = stdElement();
++		String s = filter.doFilter("aa", el);
++		assertEquals(s, "aa");
++	}
++
++	@Test
++	public void test2ndArgContained() {
++		NotContainedFilter filter = new NotContainedFilter(":ref");
++		Element el = stdElement();
++		String s = filter.doFilter("x", el);
++		assertNull(s);
++	}
++
++	@Test
++	public void testNonDefaultDelimiterNotContained() {
++		NotContainedFilter filter = new NotContainedFilter("#:ref");
++		Element el = stdElement();
++		String s = filter.doFilter("x", el);
++		assertEquals(s, "x");
++	}
++	
++	@Test
++	public void testNonDefaultDelimiterContained() {
++		NotContainedFilter filter = new NotContainedFilter("#:test");
++		Element el = stdElement();
++		el.addTag("test", "Aa#Bb#Cc#Dd");
++		String s = filter.doFilter("Cc", el);
++		assertNull(s);
++	}
++	
++	@Test
++	public void testMissingTag(){
++		NotContainedFilter filter=new NotContainedFilter(":sometag");
++		Element el = stdElement();
++		String s=filter.doFilter("x", el);
++		assertEquals(s, "x");
++	}
++
++	private Element stdElement() {
++		Element el1 = new Way(1);
++		el1.addTag("ref", "x;y;z");
++		return el1;
++	}
++
++}
+ 		

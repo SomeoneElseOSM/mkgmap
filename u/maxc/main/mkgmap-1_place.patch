@@ -1,0 +1,325 @@
+Index: doc/addresses/address.txt
+===================================================================
+--- doc/addresses/address.txt	(revision 3424)
++++ doc/addresses/address.txt	(working copy)
+@@ -99,12 +99,14 @@
+ 
+ mkgmap uses so called preprocessed bounds files to provide a quick method assign the lies-in relationship for some hard wired tags:
+ * admin_level=2..11
++* place
++* place_name
+ * postal_code
+ 
+ TODO: Parameter, mkgmap tags
+  
+ === Creating preprocessed bounds ===
+-Preprocessing bounds is a procedure to extract and prepare all boundary and zip code data with from a large
++Preprocessing bounds is a procedure to extract and prepare all boundary, zip code and place data with from a large
+ OSM extract (like europe extract or asia extract). The data is prepared in such a format that mkgmap 
+ can read and process in a fast way while compiling maps.
+ 
+@@ -115,7 +117,7 @@
+ . Eventually merge multiple preprocessed extracts 
+ 
+ ==== Extracting data ====
+-The boundary and zip code data must be extracted from a large OSM extract to avoid excessive memory
++The boundary, zip code and place data must be extracted from a large OSM extract to avoid excessive memory
+ requirements in the preprocessing step.
+ 
+ NOTE: This manual describes the usage of the two tools +osmconvert+ and +osmfilter+. The same can be achieved
+@@ -135,12 +137,12 @@
+ to o5m format. This o5m file is then filtered. 
+ 
+  osmconvert europe.osm.pbf --out-o5m >europe.o5m
+- osmfilter europe.o5m --keep-nodes= --keep-ways-relations="boundary=administrative =postal_code postal_code=" --out-o5m > europe-boundaries.o5m
++ osmfilter europe.o5m --keep-nodes= --keep-ways-relations="boundary=administrative =postal_code postal_code= ( type=multipolygon and place= and name= ) " --out-o5m > europe-boundaries.o5m
+ 
+ =================================
+ 
+ ==== Preprocessing data ====
+-The tool for preprocessing the boundary and zip code data is contained in the common mkgmap download.
++The tool for preprocessing the boundary, zip code and place data is contained in the common mkgmap download.
+ 
+ .Preprocessing bounds data
+ =================================
+Index: doc/styles/internal-tags.txt
+===================================================================
+--- doc/styles/internal-tags.txt	(revision 3424)
++++ doc/styles/internal-tags.txt	(working copy)
+@@ -110,7 +110,9 @@
+ | +mkgmap:admin_level8+  | Name of the +boundary=administrative+ relation/polygon with +admin_level=8+ the element is located in | 'bounds'    
+ | +mkgmap:admin_level9+  | Name of the +boundary=administrative+ relation/polygon with +admin_level=9+ the element is located in | 'bounds'    
+ | +mkgmap:admin_level10+  | Name of the +boundary=administrative+ relation/polygon with +admin_level=10+ the element is located in | 'bounds'    
+-| +mkgmap:admin_level11+  | Name of the +boundary=administrative+ relation/polygon with +admin_level=11+ the element is located in | 'bounds'    
++| +mkgmap:admin_level11+  | Name of the +boundary=administrative+ relation/polygon with +admin_level=11+ the element is located in | 'bounds'   
++| +mkgmap:place+  | Type of place (city, hamlet, ...) of the +type=multipolygon+ relation/polygon with +place=<type>+ the element is located in | 'bounds'
++| +mkgmap:place_name+  | Name of the +type=multipolygon+ relation/polygon with +place=<type>+ the element is located in | 'bounds'
+ | +mkgmap:postcode+  | Name of the postal code relation/polygon the element is located in | 'bounds'    
+ | +mkgmap:area2poi+  | The value is +true+ if the POI is derived from a polygon | 'add-poi-to-areas'    
+ | +mkgmap:line2poi+  | The value is +true+ if the POI is derived from a line | 'add-poi-to-lines'    
+Index: resources/LocatorConfig.xml
+===================================================================
+--- resources/LocatorConfig.xml	(revision 3424)
++++ resources/LocatorConfig.xml	(working copy)
+@@ -849,7 +849,7 @@
+ 		<variant>ROU</variant>
+ 		<variant>Romania</variant>
+ 	</country>
+-	<country name="Russian Federation" abr="RUS" streetBeforeHousenumber="true">
++	<country name="Russian Federation" abr="RUS" streetBeforeHousenumber="true" postalcodeBeforeCity="true">
+ 		<variant>RU</variant>
+ 		<variant>RUS</variant>
+ 		<variant>Russia</variant>
+Index: resources/help/en/options
+===================================================================
+--- resources/help/en/options	(revision 3424)
++++ resources/help/en/options	(working copy)
+@@ -139,7 +139,9 @@
+               mkgmap:admin_level3 : Name of the admin_level=3 boundary
+               ..
+               mkgmap:admin_level11
+-              mkgmap:postcode : the postal_code value
++              mkgmap:place : Place type (city, hamlet, ...) of the multipolygon with place tag
++              mkgmap:place_name : Name of the multipolygon with place tag
++              mkgmap:postcode : Postal_code value
+               
+     Preprocessed bounds can be created with the following command:
+        java -cp mkgmap.jar 
+Index: resources/styles/default/inc/address
+===================================================================
+--- resources/styles/default/inc/address	(revision 3424)
++++ resources/styles/default/inc/address	(working copy)
+@@ -96,6 +96,11 @@
+ mkgmap:country=GRE & mkgmap:city!=* & mkgmap:admin_level7=* { set mkgmap:city='${mkgmap:admin_level7}' }
+ mkgmap:country=GRE & mkgmap:city!=* & mkgmap:admin_level8=* { set mkgmap:city='${mkgmap:admin_level8}' }
+ 
++# Russia
++mkgmap:country=RUS & mkgmap:city!=* & mkgmap:admin_level8=* { set mkgmap:city='${mkgmap:admin_level8}' }
++mkgmap:country=RUS & mkgmap:city!=* & mkgmap:place=* { set mkgmap:city='${mkgmap:place_name}' }
++mkgmap:country=RUS & mkgmap:city!=* & mkgmap:admin_level6=* { set mkgmap:city='${mkgmap:admin_level6}' }
++
+ # common rules for all the rest of countries
+ mkgmap:region!=* & mkgmap:admin_level6=* { set mkgmap:region='${mkgmap:admin_level6}' } 
+ mkgmap:region!=* & mkgmap:admin_level5=* { set mkgmap:region='${mkgmap:admin_level5}' } 
+Index: src/uk/me/parabola/mkgmap/reader/osm/boundary/BoundaryElementSaver.java
+===================================================================
+--- src/uk/me/parabola/mkgmap/reader/osm/boundary/BoundaryElementSaver.java	(revision 3424)
++++ src/uk/me/parabola/mkgmap/reader/osm/boundary/BoundaryElementSaver.java	(working copy)
+@@ -47,9 +47,9 @@
+ 
+ 	/**
+ 	 * Checks if the given element is an administrative boundary or a
+-	 * postal code area.
++	 * postal code area or a multipoligon with tag "place".
+ 	 * @param element an element
+-	 * @return <code>true</code> administrative boundary or postal code; 
++	 * @return <code>true</code> administrative boundary or postal code or multipoligon with place tag; 
+ 	 * <code>false</code> element cannot be used for precompiled bounds 
+ 	 */
+ 	public static boolean isBoundary(Element element) {
+@@ -102,6 +102,8 @@
+ 					return false;						
+ 				} else if (element.getTag("postal_code") != null){
+ 					return true;
++				} else if (element.getTag("place") != null){
++					return true;
+ 				} else {
+ 					return false;
+ 				}
+Index: src/uk/me/parabola/mkgmap/reader/osm/boundary/BoundaryLocationInfo.java
+===================================================================
+--- src/uk/me/parabola/mkgmap/reader/osm/boundary/BoundaryLocationInfo.java	(revision 3424)
++++ src/uk/me/parabola/mkgmap/reader/osm/boundary/BoundaryLocationInfo.java	(working copy)
+@@ -23,15 +23,17 @@
+ 	private final String zip;
+ 	private final String name;
+ 	private final int admLevel;
++	private final String place;
+ 	private boolean isISO;
+ 
+-	BoundaryLocationInfo (int admLevel, String name, String zip, boolean isISO){
++	BoundaryLocationInfo (int admLevel, String name, String zip, String place, boolean isISO){
+ 		this.admLevel = admLevel;
+ 		if (admLevel > 0 && name == null)
+ 			this.name = "not_set"; // TODO: review
+ 		else 
+ 			this.name = name;
+ 		this.zip = zip;
++		this.place = place;
+ 		this.isISO = isISO;
+ 	}
+ 	public String getZip() {
+@@ -46,6 +48,10 @@
+ 		return admLevel;
+ 	}
+ 
++	public String getPlace() {
++		return place;
++	}
++	
+ 	public boolean isISOName(){
+ 		return isISO;
+ 	}
+Index: src/uk/me/parabola/mkgmap/reader/osm/boundary/BoundaryLocationPreparer.java
+===================================================================
+--- src/uk/me/parabola/mkgmap/reader/osm/boundary/BoundaryLocationPreparer.java	(revision 3424)
++++ src/uk/me/parabola/mkgmap/reader/osm/boundary/BoundaryLocationPreparer.java	(working copy)
+@@ -69,6 +69,7 @@
+ 		int admLevel = getAdminLevel(tags);
+ 		boolean isISO = false;
+ 		String name = getName(tags);
++		String place = getPlace(tags);
+ 		if (locator != null){
+ 			if (admLevel == 2) {
+ 				String isoCode = locator.addCountry(tags);
+@@ -81,7 +82,7 @@
+ 				log.debug("Coded:",name);
+ 			}
+ 		}
+-		return new BoundaryLocationInfo(admLevel, name, zip, isISO);
++		return new BoundaryLocationInfo(admLevel, name, zip, place, isISO);
+ 	}
+ 
+ 	/** 
+@@ -192,5 +193,16 @@
+ 			return UNSET_ADMIN_LEVEL;
+ 		}
+ 	}
++	
++	/**
++	 * Try to extract a place type from the the tags of a boundary. 
++	 * @param tags the boundary tags
++	 * @return null if no place type was found, else a String that should be a place type. 
++	 */
++	private String getPlace(Tags tags) {
++		String place = tags.get("place");
++		
++		return place;
++	}
+ } 
+ 
+Index: src/uk/me/parabola/mkgmap/reader/osm/boundary/BoundaryQuadTree.java
+===================================================================
+--- src/uk/me/parabola/mkgmap/reader/osm/boundary/BoundaryQuadTree.java	(revision 3424)
++++ src/uk/me/parabola/mkgmap/reader/osm/boundary/BoundaryQuadTree.java	(working copy)
+@@ -87,10 +87,14 @@
+ 		"mkgmap:admin_level9",
+ 		"mkgmap:admin_level10",
+ 		"mkgmap:admin_level11",
++		"mkgmap:place",
++		"mkgmap:place_name",
+ 		"mkgmap:postcode"
+ 	};
+-	// 11: the position of "mkgmap:postcode" in the above array
+-	public final static short POSTCODE_ONLY = 1 << 11;   
++	// 11: the position of "mkgmap:place" in the above array
++	public final static short PLACE_ONLY = 1 << 11;
++	// 13: the position of "mkgmap:postcode" in the above array
++	public final static short POSTCODE_ONLY = 1 << 13;   
+ 	
+ 	/**
+ 	 * Create a quadtree with the data in an open stream. 
+@@ -262,8 +266,8 @@
+ 	}
+ 
+ 	/**
+-	 * Sort the boundary-Tags-Map so that zip-code-only boundaries appear first, followed by
+-	 * admin_level-11,10,9,...2
++	 * Sort the boundary-Tags-Map so that zip-code-only boundaries appear first, followed by place,
++	 * followed by admin_level-11,10,9,...2
+ 	 */
+ 	private void sortBoundaryTagsMap(){
+ 		// make sure that the merged LinkedHashMap is sorted as mergeBoundaries() needs it
+@@ -847,7 +851,7 @@
+ 					toAdd.setArea(toAddMinusCurr);
+ 					if (!isWritable(currMinusToAdd)){
+ 					    // curr is fully covered by toAdd 
+-						if (toAdd.tagMask != POSTCODE_ONLY){
++						if (toAdd.tagMask < PLACE_ONLY){
+ 							currElem.addLocInfo(toAdd);
+ 						}
+ 						continue; // no need to create new intersection area
+@@ -863,7 +867,7 @@
+ 					// remove intersection part also from curr 
+ 					currElem.setArea(currMinusToAdd);
+ 					
+-					if (toAdd.tagMask != POSTCODE_ONLY){
++					if (toAdd.tagMask < PLACE_ONLY){
+ 						// combine tag info in intersection
+ 						intersect.addLocInfo(toAdd);
+ 						reworked.add(intersect);
+@@ -920,7 +924,7 @@
+ 				NodeElem lastNode = nodes.get(nodes.size()-1);
+ 				NodeElem prevNode = nodes.get(nodes.size()-2);
+ 				// don't merge admin_level tags into zip-code only boundary
+-				if (prevNode.tagMask != POSTCODE_ONLY && lastNode.getArea().isRectangular() && prevNode.getArea().isRectangular()){
++				if (prevNode.tagMask < PLACE_ONLY && lastNode.getArea().isRectangular() && prevNode.getArea().isRectangular()){
+ 					// two areas are rectangles, it is likely that they are equal to the bounding box
+ 					// In this case we add the tags to the existing area instead of creating a new one
+ 					if (prevNode.getArea().equals(lastNode.getArea())){
+@@ -1124,6 +1128,11 @@
+ 				locTags.put("mkgmap:postcode",bInfo.getZip());
+ 			}
+ 			
++			if (bInfo.getPlace() != null){
++				locTags.put("mkgmap:place", bInfo.getPlace());
++				locTags.put("mkgmap:place_name", bInfo.getName());
++			}
++			
+ 			if (bInfo.getAdmLevel() != BoundaryLocationPreparer.UNSET_ADMIN_LEVEL){
+ 				locTags.put(BoundaryQuadTree.mkgmapTagsArray[bInfo.getAdmLevel()-1], bInfo.getName());
+ 			}
+@@ -1148,12 +1157,22 @@
+ 					if (addAdmLevel != BoundaryLocationPreparer.UNSET_ADMIN_LEVEL){
+ 						addAdmName = addInfo.getName();
+ 					}
++					String addPlace = addInfo.getPlace();
++					String addPlaceName = null;
++					if (addPlace != null)
++						addPlaceName = addInfo.getName();
+ 					String addZip = addInfo.getZip();
+ 
+ 					if (addAdmName != null){
+ 						if (locTags.get(BoundaryQuadTree.mkgmapTagsArray[addAdmLevel-1]) == null)
+ 							locTags.put(BoundaryQuadTree.mkgmapTagsArray[addAdmLevel-1], addAdmName);
+ 					}
++					if (addPlace != null){
++						if (locTags.get("mkgmap:place") == null)
++							locTags.put("mkgmap:place", addPlace);
++						if (locTags.get("mkgmap:place_name") == null)
++							locTags.put("mkgmap:place_name", addPlaceName);
++					}
+ 					if (addZip != null){
+ 						if (locTags.get("mkgmap:postcode") == null)
+ 							locTags.put("mkgmap:postcode", addZip);
+@@ -1297,7 +1316,7 @@
+ 							break;
+ 						}
+ 					}
+-					else{
++					else if (testMask < PLACE_ONLY){
+ 						errAdmLevel = k+1;
+ 						errMsg = new String ("same admin_level (" + errAdmLevel + ")");
+ 						break;
+@@ -1372,12 +1391,21 @@
+ 				if (i1.isISOName() == false && i2.isISOName() == true)
+ 					return -1;
+ 			}
++			
++			boolean place1set = i1.getPlace() != null;
++			boolean place2set = i2.getPlace() != null;
++			if (place1set && !place2set)
++				return 1;
++			if (!place1set && place2set)
++				return -1;
++			
+ 			boolean post1set = i1.getZip() != null;
+ 			boolean post2set = i2.getZip() != null;
+ 			if (post1set && !post2set)
+ 				return 1;
+ 			if (!post1set && post2set)
+ 				return -1;
++			
+ 			// if all is equal, prefer the lower boundaryId
+ 			return o1.compareTo(o2);
+ 		}

@@ -1,0 +1,28 @@
+$Id$
+
+BASIC INVOCATION
+
+README.invoking for mkgmap
+
+To run mkgmap, the basic invocation is
+
+  java -jar mkgmap.jar
+
+or
+
+  java -jar /path/to/jar/mkgmap.jar
+
+JAVA OPTIONS
+
+If your computer has 2Gb or less of memory, then you may have to give
+the option "-Xmx900m" to java.
+
+  java -Xmx900m -jar /path/to/jar/mkgmap.jar
+
+BUILTIN HELP
+
+Run
+
+  java -jar mkgmap.jar --help=options
+
+to get a list of options to mkgmap.

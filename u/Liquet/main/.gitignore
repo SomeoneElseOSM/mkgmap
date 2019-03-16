@@ -1,0 +1,10 @@
+*.img
+*.tdb
+*.typ
+*~
+bin
+build/classes
+dist
+ivy-distrib/
+lib/
+mkgmap.log.*

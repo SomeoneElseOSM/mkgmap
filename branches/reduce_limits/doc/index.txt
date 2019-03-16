@@ -1,0 +1,20 @@
+
+== Documentation ==
+The documentation that is currently available on this site is listed
+below.
+
+[/doc/options '''Command line options''']
+The possible command line options to mkgmap. This list is also available
+using the command:
+ mkgmap --help=options
+
+[/doc/pdf/style-manual.pdf '''Style Manual'''] [pdf] 
+This is the complete documentation of the style rules that determine how
+the OSM taged features are converted into the Garmin features.
+
+[/doc/typ-compiler '''TYP compiler manual''']
+This documents the language that is accepted by the TYP compiler that
+is included within mkgmap.
+
+For other documentation go to the Open Street Map wiki for documentation
+[http://wiki.openstreetmap.org/wiki/Mkgmap here]

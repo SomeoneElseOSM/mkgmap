@@ -1,0 +1,45 @@
+
+The mkgmap Tutorial
+===================
+The mkgmap team
+:pubdate: January 2013
+:toc:
+:numbered:
+:doctype: book
+:website: http://www.mkgmap.org.uk
+:email: mkgmap-dev@lists.mkgmap.org.uk
+:description: A tutorial that starts with creating your first map and in a series of steps shows how to create a map of a whole country.
+:max-width: 58em
+
+:frame: topbot
+:grid: rows
+
+:osm: Open Street Map
+
+// Used for conditional compiles for a unix/windows version.
+:windows: 1
+:linux: 1
+:mac: 1
+
+
+Introduction
+------------
+This tutorial starts with simple instructions to create a first map of
+you local area and then gradually shows you how to build this into a
+complete map of a country or region that is suitable for distribution to
+others should you wish.
+
+
+:leveloffset: 1
+
+include::starting.txt[]
+
+include::first_map.txt[]
+
+include::second_map.txt[]
+
+include::splitter.txt[]
+
+include::publish.txt[]
+
+include::custom.txt[]
